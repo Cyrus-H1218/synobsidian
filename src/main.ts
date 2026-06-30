@@ -55,6 +55,7 @@ export default class SynObsidianPlugin extends Plugin implements ISynObsidianPlu
   private statusBarEl: HTMLElement | null = null;
   private syncEngine: SyncEngine | null = null;
   private syncRunning = false;
+  private autoSyncTimer: number | null = null;
 
   // ── ISynObsidianPlugin ──────────────────────────────────────────
 
@@ -65,6 +66,8 @@ export default class SynObsidianPlugin extends Plugin implements ISynObsidianPlu
   async saveSettings(settings: SynObsidianSettings): Promise<void> {
     this.data.settings = settings;
     await this.saveData(this.data);
+    // Restart auto-sync timer with possibly new interval
+    this.startAutoSync();
   }
 
   async testConnection(): Promise<boolean> {
@@ -126,10 +129,13 @@ export default class SynObsidianPlugin extends Plugin implements ISynObsidianPlu
 
     // Settings tab
     this.addSettingTab(new SynObsidianSettingTab(this.app, this));
+
+    // Auto-sync timer
+    this.startAutoSync();
   }
 
   onunload(): void {
-    // Obsidian cleans up registered items automatically
+    this.stopAutoSync();
   }
 
   // ── Sync orchestration ──────────────────────────────────────────
@@ -283,6 +289,37 @@ export default class SynObsidianPlugin extends Plugin implements ISynObsidianPlu
       } else {
         this.statusBarEl.setText("📋 点击同步 (SynObsidian)");
       }
+    }
+  }
+
+  /** Start (or restart) the periodic auto-sync timer. */
+  private startAutoSync(): void {
+    this.stopAutoSync();
+
+    const intervalMin = this.data.settings.autoSyncInterval;
+    if (!intervalMin || intervalMin <= 0) return;
+
+    const intervalMs = intervalMin * 60 * 1000;
+    this.autoSyncTimer = window.setInterval(() => {
+      // Only trigger if sync is not already running and config is valid
+      if (this.syncRunning) return;
+
+      const s = this.data.settings;
+      if (!s.s3Endpoint || !s.s3Bucket || !s.s3AccessKeyId) return;
+      if (s.enableEncryption && !s.encryptionPassword) return;
+
+      this.triggerSync("full");
+    }, intervalMs);
+
+    // Register the timer so Obsidian cleans it up on plugin unload
+    this.registerInterval(this.autoSyncTimer);
+  }
+
+  /** Stop the auto-sync timer. */
+  private stopAutoSync(): void {
+    if (this.autoSyncTimer !== null) {
+      window.clearInterval(this.autoSyncTimer);
+      this.autoSyncTimer = null;
     }
   }
 }

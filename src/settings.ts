@@ -33,6 +33,8 @@ export interface SynObsidianSettings {
   excludePatterns: string;
   /** "newer" = keep the newer version; "manual" = create conflict copies. */
   conflictStrategy: "newer" | "manual";
+  /** Auto-sync interval in minutes. 0 = disabled. */
+  autoSyncInterval: number;
 
   // ── Internal ──
   /** Salt derived from vault name + password, stored as hex. */
@@ -58,6 +60,8 @@ export const DEFAULT_SETTINGS: SynObsidianSettings = {
     "*.excalidraw",
   ].join("\n"),
   conflictStrategy: "newer",
+
+  autoSyncInterval: 0,
 
   encryptionSaltHex: "",
 };
@@ -309,6 +313,25 @@ export class SynObsidianSettingTab extends PluginSettingTab {
           .setValue(this.settings.conflictStrategy)
           .onChange(async (val) => {
             this.settings.conflictStrategy = val as "newer" | "manual";
+            await this.plugin.saveSettings(this.settings);
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("自动同步间隔")
+      .setDesc(
+        "定时自动执行全量双向同步。需要已配置好 S3 和加密密码。设为「关闭」可禁用。"
+      )
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption("0", "关闭")
+          .addOption("5", "每 5 分钟")
+          .addOption("15", "每 15 分钟")
+          .addOption("30", "每 30 分钟")
+          .addOption("60", "每 60 分钟")
+          .setValue(String(this.settings.autoSyncInterval))
+          .onChange(async (val) => {
+            this.settings.autoSyncInterval = parseInt(val, 10) || 0;
             await this.plugin.saveSettings(this.settings);
           })
       );
