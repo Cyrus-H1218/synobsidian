@@ -1,6 +1,6 @@
 {
   "name": "synobsidian",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Obsidian plugin for cross-device sync via S3-compatible storage with E2E encryption",
   "main": "main.js",
   "scripts": {
