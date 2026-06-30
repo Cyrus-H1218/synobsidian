@@ -66,7 +66,6 @@ export interface RemoteFileEntry {
 
 const META_MTIME = "mtime";
 const META_ENCRYPTED = "encrypted";
-const META_ORIG_PATH = "orig-path";
 
 function toMetaValue(num: number): string {
   return num.toString();
@@ -212,7 +211,6 @@ export class S3Backend {
       Metadata: {
         [cleanMetaKey(META_MTIME)]: toMetaValue(mtime),
         [cleanMetaKey(META_ENCRYPTED)]: encrypted ? "true" : "false",
-        [cleanMetaKey(META_ORIG_PATH)]: vaultPath,
       },
       // Content-Type is inferred automatically
     });
