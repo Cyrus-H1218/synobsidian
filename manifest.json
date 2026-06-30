@@ -1,0 +1,10 @@
+{
+  "id": "synobsidian",
+  "name": "SynObsidian",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "跨设备双向同步插件，支持 S3 兼容存储（Cloudflare R2/Backblaze B2/MinIO），端到端 AES-256-GCM 加密。",
+  "author": "synObsidian",
+  "authorUrl": "https://github.com/synobsidian",
+  "isDesktopOnly": false
+}

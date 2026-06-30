@@ -1,0 +1,34 @@
+/* SynObsidian Plugin Styles */
+
+.synobsidian-status-bar {
+  cursor: pointer;
+}
+
+.synobsidian-status-bar.syncing {
+  color: var(--color-orange);
+}
+
+.synobsidian-status-bar.success {
+  color: var(--color-green);
+}
+
+.synobsidian-status-bar.error {
+  color: var(--color-red);
+}
+
+.synobsidian-settings .connection-test-success {
+  color: var(--color-green);
+  font-weight: bold;
+}
+
+.synobsidian-settings .connection-test-fail {
+  color: var(--color-red);
+  font-weight: bold;
+}
+
+.synobsidian-settings .setting-item-description code {
+  background: var(--background-modifier-border);
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 0.85em;
+}
