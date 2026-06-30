@@ -32,3 +32,51 @@
   padding: 2px 4px;
   font-size: 0.85em;
 }
+
+/* ── Sync log ──────────────────────────────────────────────── */
+
+.synobsidian-sync-log {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.synobsidian-log-entry {
+  border-top: 1px solid var(--background-modifier-border);
+  padding: 8px 0;
+}
+
+.synobsidian-log-entry:first-child {
+  border-top: none;
+}
+
+.synobsidian-log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.synobsidian-log-mode {
+  font-weight: 600;
+}
+
+.synobsidian-log-time {
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.synobsidian-log-stats {
+  font-size: 0.9em;
+  color: var(--text-muted);
+}
+
+.synobsidian-log-errors {
+  margin: 4px 0 0 0;
+  padding-left: 16px;
+}
+
+.synobsidian-log-errors li {
+  font-size: 0.85em;
+  color: var(--text-error);
+  word-break: break-all;
+}

@@ -15,6 +15,7 @@ import {
   SynObsidianSettingTab,
   type SyncMode,
   type ISynObsidianPlugin,
+  type SyncLogEntry,
 } from "./settings";
 import { S3Backend, type S3Config } from "./s3Backend";
 import { SyncEngine, type Snapshot } from "./syncEngine";
@@ -40,12 +41,15 @@ interface PluginData {
   lastSnapshot: Snapshot;
   /** Timestamp of last successful sync. */
   lastSyncTime: number | null;
+  /** Last 20 sync log entries (newest first). */
+  syncLog: SyncLogEntry[];
 }
 
 const DEFAULT_DATA: PluginData = {
   settings: DEFAULT_SETTINGS,
   lastSnapshot: {},
   lastSyncTime: null,
+  syncLog: [],
 };
 
 // ── Plugin class ────────────────────────────────────────────────────
@@ -68,6 +72,10 @@ export default class SynObsidianPlugin extends Plugin implements ISynObsidianPlu
     await this.saveData(this.data);
     // Restart auto-sync timer with possibly new interval
     this.startAutoSync();
+  }
+
+  getSyncLog(): SyncLogEntry[] {
+    return this.data.syncLog;
   }
 
   async testConnection(): Promise<boolean> {
@@ -198,6 +206,23 @@ export default class SynObsidianPlugin extends Plugin implements ISynObsidianPlu
       // Save new snapshot
       this.data.lastSnapshot = newSnapshot;
       this.data.lastSyncTime = Date.now();
+
+      // Append to sync log (keep last 20 entries)
+      const logEntry: SyncLogEntry = {
+        timestamp: Date.now(),
+        mode,
+        uploaded: syncReport.uploaded,
+        downloaded: syncReport.downloaded,
+        remoteDeleted: syncReport.remoteDeleted,
+        localDeleted: syncReport.localDeleted,
+        conflicts: syncReport.conflicts,
+        errors: syncReport.errors,
+        durationMs: syncReport.durationMs,
+      };
+      this.data.syncLog.unshift(logEntry);
+      if (this.data.syncLog.length > 20) {
+        this.data.syncLog = this.data.syncLog.slice(0, 20);
+      }
       await this.saveData(this.data);
 
       // Build summary
@@ -210,14 +235,16 @@ export default class SynObsidianPlugin extends Plugin implements ISynObsidianPlu
       if (parts.length === 0 && syncReport.remoteDeleted === 0 && syncReport.localDeleted === 0) {
         new Notice("✓ 所有文件已是最新");
       } else if (syncReport.errors.length > 0) {
+        // Show first error detail in the Notice so the user knows what went wrong
+        const firstErr = syncReport.errors[0];
+        const more = syncReport.errors.length > 1
+          ? ` (+${syncReport.errors.length - 1} 个)`
+          : "";
         new Notice(
-          `同步完成: ${parts.join(" ")} | ${syncReport.errors.length} 个错误`,
-          6000
+          `同步完成: ${parts.join(" ")} | ${firstErr}${more}`,
+          10000
         );
-        // Log detailed errors to console
-        for (const err of syncReport.errors) {
-          console.warn("[SynObsidian]", err);
-        }
+        console.warn("[SynObsidian]", syncReport.errors);
       } else {
         new Notice(`同步完成: ${parts.join(" ")}`, 4000);
       }

@@ -11,6 +11,7 @@ import {
   Setting,
   Notice,
 } from "obsidian";
+import { formatTime } from "./utils";
 
 // ── Settings interface ────────────────────────────────────────────────
 
@@ -73,11 +74,25 @@ export type SyncMode = "full" | "push" | "pull";
  * Minimal plugin interface that the settings tab depends on.
  * This avoids a circular import from main.ts.
  */
+/** One entry in the sync log. */
+export interface SyncLogEntry {
+  timestamp: number;
+  mode: SyncMode;
+  uploaded: number;
+  downloaded: number;
+  remoteDeleted: number;
+  localDeleted: number;
+  conflicts: number;
+  errors: string[];
+  durationMs: number;
+}
+
 export interface ISynObsidianPlugin {
   getSettings(): SynObsidianSettings;
   saveSettings(settings: SynObsidianSettings): Promise<void>;
   testConnection(): Promise<boolean>;
   triggerSync(mode: SyncMode): Promise<void>;
+  getSyncLog(): SyncLogEntry[];
 }
 
 // ── Settings Tab ──────────────────────────────────────────────────────
@@ -335,5 +350,64 @@ export class SynObsidianSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings(this.settings);
           })
       );
+
+    // ── Sync log ────────────────────────────────────────────────
+    const log = this.plugin.getSyncLog();
+    if (log && log.length > 0) {
+      containerEl.createEl("h2", { text: "同步日志" });
+
+      const logContainer = containerEl.createEl("div", {
+        cls: "synobsidian-sync-log",
+      });
+
+      for (const entry of log) {
+        const item = logContainer.createEl("div", {
+          cls: "synobsidian-log-entry",
+        });
+
+        // Header: mode + time
+        const header = item.createEl("div", {
+          cls: "synobsidian-log-header",
+        });
+
+        const modeLabels: Record<string, string> = {
+          full: "全量同步",
+          push: "仅推送",
+          pull: "仅拉取",
+        };
+        header.createEl("span", {
+          text: modeLabels[entry.mode] ?? entry.mode,
+          cls: "synobsidian-log-mode",
+        });
+        header.createEl("span", {
+          text: formatTime(new Date(entry.timestamp)),
+          cls: "synobsidian-log-time",
+        });
+
+        // Stats line
+        const stats: string[] = [];
+        if (entry.uploaded > 0) stats.push(`↑${entry.uploaded}`);
+        if (entry.downloaded > 0) stats.push(`↓${entry.downloaded}`);
+        if (entry.conflicts > 0) stats.push(`⚡${entry.conflicts}`);
+        if (entry.remoteDeleted > 0 || entry.localDeleted > 0)
+          stats.push(`🗑${entry.remoteDeleted + entry.localDeleted}`);
+        if (stats.length === 0) stats.push("无变化");
+
+        item.createEl("div", {
+          text: `${stats.join(" ")} · ${(entry.durationMs / 1000).toFixed(1)}s`,
+          cls: "synobsidian-log-stats",
+        });
+
+        // Errors
+        if (entry.errors.length > 0) {
+          const errList = item.createEl("ul", {
+            cls: "synobsidian-log-errors",
+          });
+          for (const err of entry.errors) {
+            errList.createEl("li", { text: err });
+          }
+        }
+      }
+    }
   }
 }
