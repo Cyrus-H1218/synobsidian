@@ -1,0 +1,61 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'           # Trigger on version tags like v1.0.1
+  workflow_dispatch:   # Allow manual trigger
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit --skipLibCheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Prepare release assets
+        run: |
+          mkdir release
+          cp main.js manifest.json styles.css release/
+          cd release && zip -r ../synobsidian.zip .
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            main.js
+            manifest.json
+            styles.css
+            synobsidian.zip
+          body: |
+            ## 🔄 SynObsidian ${{ github.ref_name }}
+
+            ### 📦 安装
+            1. 下载 `synobsidian.zip`
+            2. 解压到 `<vault>/.obsidian/plugins/synobsidian/`
+            3. 重启 Obsidian → 启用插件
+
+            ### 或手动安装
+            单独下载 `main.js`、`manifest.json`、`styles.css` 放入插件目录。
+
+            ---
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.ref_name }}
+          generateReleaseNotes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -486,26 +486,94 @@ export class SyncEngine {
 
     if (strategy === "newer") {
       if (conflict.localMtime >= conflict.remoteMtime) {
-        // Local is newer — upload to overwrite remote
+        // Local is newer — upload to overwrite remote (with encryption if enabled)
         const content = await this.readLocalFile(conflict.path);
-        if (content) {
-          const entry = localSnapshot[conflict.path];
-          await this.backend.uploadFile(
-            conflict.path,
-            new TextEncoder().encode(content),
-            entry?.mtime ?? Date.now(),
-            this.settings.enableEncryption
+        if (!content) return;
+
+        const localEntry = localSnapshot[conflict.path];
+        let body: Uint8Array;
+        let encrypted = false;
+
+        if (this.settings.enableEncryption && this.settings.encryptionPassword) {
+          const saltHex = this.settings.encryptionSaltHex;
+          if (!saltHex) return;
+          const salt = new Uint8Array(
+            saltHex.match(/.{1,2}/g)!.map((b) => parseInt(b, 16))
           );
+          const key = await deriveKey(this.settings.encryptionPassword, salt);
+          const encBuf = await encrypt(content, key, salt);
+          body = new Uint8Array(encBuf);
+          encrypted = true;
+        } else {
+          body = new TextEncoder().encode(content);
         }
+
+        await this.backend.uploadFile(
+          conflict.path,
+          body,
+          localEntry?.mtime ?? Date.now(),
+          encrypted
+        );
       } else {
-        // Remote is newer — download to overwrite local
-        // Back up the local version first
+        // Remote is newer — download to overwrite local.
+        // Back up the local version first, then fetch and write remote.
         await this.backupLocalFile(conflict.path);
-        // The download will happen in the main loop — this just triggers backup
+
+        const result = await this.backend.downloadFile(conflict.path);
+        if (!result) return;
+
+        let content: string;
+        if (result.encrypted || isEncrypted(result.content)) {
+          if (!this.settings.encryptionPassword) return;
+          const decrypted = await decrypt(
+            result.content,
+            this.settings.encryptionPassword
+          );
+          if (decrypted === null) return;
+          content = decrypted;
+        } else {
+          const dec = new TextDecoder();
+          content = dec.decode(result.content);
+        }
+
+        await this.writeLocalFile(conflict.path, content, result.mtime);
       }
     } else {
-      // Manual — always create a conflict backup
+      // Manual — back up local version, then download remote version as a
+      // separate conflict file so the user can compare and merge manually.
       await this.backupLocalFile(conflict.path);
+
+      const result = await this.backend.downloadFile(conflict.path);
+      if (!result) return;
+
+      let content: string;
+      if (result.encrypted || isEncrypted(result.content)) {
+        if (!this.settings.encryptionPassword) return;
+        const decrypted = await decrypt(
+          result.content,
+          this.settings.encryptionPassword
+        );
+        if (decrypted === null) return;
+        content = decrypted;
+      } else {
+        const dec = new TextDecoder();
+        content = dec.decode(result.content);
+      }
+
+      // Save remote version as a conflict-remote file
+      const ts = conflictTimestamp();
+      const ext = conflict.path.includes(".")
+        ? conflict.path.split(".").pop()
+        : "md";
+      const base = conflict.path.replace(/\.[^.]+$/, "");
+      const remoteConflictPath = `${base}.conflict-remote-${ts}.${ext}`;
+
+      const dirPath = remoteConflictPath.split("/").slice(0, -1).join("/");
+      if (dirPath) {
+        const dir = this.vault.getAbstractFileByPath(dirPath);
+        if (!dir) await this.vault.createFolder(dirPath);
+      }
+      await this.vault.create(remoteConflictPath, content);
     }
   }
 
